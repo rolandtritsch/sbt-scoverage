@@ -197,15 +197,28 @@ object ScoverageSbtPlugin extends AutoPlugin {
   private lazy val coverageExclude0 = Def.task {
     implicit val log = streams.value.log
 
+    // have noticed some delay in writing on windows, hacky but works
+    log.info(s"sbt-scoverage: Waiting for measurement data to sync ...")
+    Thread.sleep(1000)
+
     val dataDir = coverageDataDir.value / "scoverage-data"
     val coverageFile = Serializer.coverageFile(dataDir)
 
     if (!coverageFile.exists) {
-      log.warn(s"No coverage data found. [$coverageFile] does not exits. Run >sbt coverage test< first.")
+      log.warn(
+        s"sbt-scoverage: No coverage data found. [$coverageFile] does not exits. Run >sbt coverage test< first."
+      )
     } else {
-      log.info(s"Reading scoverage instrumentation [$coverageFile] ...")
+      log.info(
+        s"sbt-scoverage: Reading scoverage instrumentation [$coverageFile] ..."
+      )
       val sourceRoot = coverageSourceRoot.value.getAbsoluteFile()
       val coverage = Serializer.deserialize(coverageFile, sourceRoot)
+
+      log.info(s"sbt-scoverage: Reading scoverage measurements ...")
+      val measurementFiles = IOUtils.findMeasurementFiles(dataDir)
+      val measurements = IOUtils.invoked(measurementFiles)
+      coverage.apply(measurements)
 
       val filter = new RegexCoverageFilter(
         coverageExcludedPackages.value.split(";"),
@@ -215,52 +228,66 @@ object ScoverageSbtPlugin extends AutoPlugin {
       )
 
       val statements = coverage.statements
-      log.info(s"Filtering [${statements.size}] statements ...")
-      val statementsToBeExcluded = statements.filter(
-        s => !filter.isClassIncluded(s.location.fullClassName) || !filter.isFileIncluded(s.location.sourcePath) || !filter.isSymbolIncluded(s.symbolName)
+      log.info(s"sbt-scoverage: Filtering [${statements.size}] statements ...")
+      val statementsToBeExcluded = statements.filter(s =>
+        !filter.isClassIncluded(s.location.fullClassName) || !filter
+          .isFileIncluded(s.location.sourcePath) || !filter.isSymbolIncluded(
+          s.symbolName
+        )
       )
 
-      log.info(s"Statements to be excluded [${statementsToBeExcluded.size}] ...")
+      log.info(
+        s"sbt-scoverage: Statements to be excluded [${statementsToBeExcluded.size}] ..."
+      )
       statementsToBeExcluded.foreach(s => coverage.remove(s.id))
 
-      log.info(s"(Re)Writing scoverage instrumentation [$coverageFile] ...")
+      log.info(
+        s"sbt-scoverage: (Re)Writing scoverage instrumentation [$coverageFile] ..."
+      )
       Serializer.serialize(coverage, coverageFile, sourceRoot)
     }
   }
 
   private lazy val coverageReport0 = Def.task {
-    val target = coverageDataDir.value
     implicit val log = streams.value.log
 
-    log.info(s"Waiting for measurement data to sync ...")
-    Thread.sleep(
-      1000
-    ) // have noticed some delay in writing on windows, hacky but works
+    // have noticed some delay in writing on windows, hacky but works
+    log.info(s"sbt-scoverage: Waiting for measurement data to sync ...")
+    Thread.sleep(1000)
 
-    loadCoverage(
-      target,
-      log,
-      coverageSourceRoot.value.getAbsoluteFile()
-    ) match {
-      case Some(cov) =>
-        writeReports(
-          target,
-          (Compile / sourceDirectories).value,
-          cov,
-          coverageOutputCobertura.value,
-          coverageOutputXML.value,
-          coverageOutputHTML.value,
-          coverageOutputDebug.value,
-          coverageOutputTeamCity.value,
-          sourceEncoding((Compile / scalacOptions).value),
-          log
-        )
+    val dataDir = coverageDataDir.value / "scoverage-data"
+    val coverageFile = Serializer.coverageFile(dataDir)
 
-        CoverageMinimum.all.value
-          .checkCoverage(cov, coverageFailOnMinimum.value)
+    if (!coverageFile.exists) {
+      log.warn(
+        s"sbt-scoverage: No coverage data found. [$coverageFile] does not exits. Run >sbt coverage test< first."
+      )
+    } else {
+      log.info(
+        s"sbt-scoverage: Reading scoverage instrumentation [$coverageFile] ..."
+      )
+      val sourceRoot = coverageSourceRoot.value.getAbsoluteFile()
+      val coverage = Serializer.deserialize(coverageFile, sourceRoot)
 
-      case None =>
-        log.warn(s"No coverage data found in [$target]. Run >sbt coverage test< first.")
+      log.info(s"sbt-scoverage: Reading scoverage measurements ...")
+      val measurementFiles = IOUtils.findMeasurementFiles(dataDir)
+      val measurements = IOUtils.invoked(measurementFiles)
+      coverage.apply(measurements)
+
+      writeReports(
+        dataDir,
+        (Compile / sourceDirectories).value,
+        coverage,
+        coverageOutputCobertura.value,
+        coverageOutputXML.value,
+        coverageOutputHTML.value,
+        coverageOutputDebug.value,
+        coverageOutputTeamCity.value,
+        sourceEncoding((Compile / scalacOptions).value)
+      )
+
+      CoverageMinimum.all.value
+        .checkCoverage(coverage, coverageFailOnMinimum.value)
     }
   }
 
@@ -268,7 +295,7 @@ object ScoverageSbtPlugin extends AutoPlugin {
     val target = coverageDataDir.value
     implicit val log = streams.value.log
 
-    log.info(s"Aggregating coverage from subprojects ...")
+    log.info(s"sbt-scoverage: Aggregating coverage from subprojects ...")
     val dataDirs = coverageDataDir.?.all(aggregateFilter).value
       .collect {
         case Some(file) if (file / Constants.DataDir).isDirectory =>
@@ -286,17 +313,18 @@ object ScoverageSbtPlugin extends AutoPlugin {
           coverageOutputHTML.value,
           coverageOutputDebug.value,
           coverageOutputTeamCity.value,
-          sourceEncoding((Compile / scalacOptions).value),
-          log
+          sourceEncoding((Compile / scalacOptions).value)
         )
         val cfmt = cov.statementCoverageFormatted
-        log.info(s"Aggregation complete. Coverage was [$cfmt]")
+        log.info(s"sbt-scoverage: Aggregation complete. Coverage was [$cfmt].")
 
         CoverageMinimum.all.value
           .checkCoverage(cov, coverageFailOnMinimum.value)
 
       case None =>
-        log.warn(s"No coverage data found to aggregate in [$target]. Run >sbt coverage test< first.")
+        log.warn(
+          s"sbt-scoverage: No coverage data found to aggregate in [$target]. Run >sbt coverage test< first."
+        )
     }
   }
 
@@ -309,15 +337,16 @@ object ScoverageSbtPlugin extends AutoPlugin {
       coverageOutputHTML: Boolean,
       coverageDebug: Boolean,
       coverageOutputTeamCity: Boolean,
-      coverageSourceEncoding: Option[String],
-      log: Logger
-  ): Unit = {
-    log.info(s"Generating scoverage reports ...")
+      coverageSourceEncoding: Option[String]
+  )(implicit log: Logger): Unit = {
+    log.info(s"sbt-scoverage: Generating scoverage reports ...")
 
     val coberturaDir = crossTarget / "coverage-report"
     val reportDir = crossTarget / "scoverage-report"
     coberturaDir.mkdirs()
     reportDir.mkdirs()
+
+    log.debug(s"sbt-scoverage: coverage(first statement): ${coverage.statements.head}")
 
     if (coverageOutputCobertura) {
       new CoberturaXmlWriter(
@@ -328,7 +357,7 @@ object ScoverageSbtPlugin extends AutoPlugin {
         coverage
       )
       log.info(
-        s"Written Cobertura report [${coberturaDir.getAbsolutePath}/cobertura.xml]"
+        s"sbt-scoverage: Written Cobertura report [${coberturaDir.getAbsolutePath}/cobertura.xml]"
       )
     }
 
@@ -336,23 +365,13 @@ object ScoverageSbtPlugin extends AutoPlugin {
       new ScoverageXmlWriter(
         compileSourceDirectories,
         reportDir,
-        false,
+        coverageDebug,
         coverageSourceEncoding
       ).write(
         coverage
       )
-      if (coverageDebug) {
-        new ScoverageXmlWriter(
-          compileSourceDirectories,
-          reportDir,
-          true,
-          coverageSourceEncoding
-        ).write(
-          coverage
-        )
-      }
       log.info(
-        s"Written XML coverage report [${reportDir.getAbsolutePath}/scoverage.xml]"
+        s"sbt-scoverage: Written XML coverage report [${reportDir.getAbsolutePath}/scoverage.xml]"
       )
     }
 
@@ -363,33 +382,37 @@ object ScoverageSbtPlugin extends AutoPlugin {
         coverageSourceEncoding
       ).write(coverage)
       log.info(
-        s"Written HTML coverage report [${reportDir.getAbsolutePath}/index.html]"
+        s"sbt-scoverage: Written HTML coverage report [${reportDir.getAbsolutePath}/index.html]"
       )
     }
+
     if (coverageOutputTeamCity) {
       reportToTeamcity(
         coverage,
         coverageOutputHTML,
         reportDir,
-        crossTarget,
-        log
+        crossTarget
       )
-      log.info("Written coverage report to TeamCity")
+      log.info(
+        "sbt-scoverage: Written coverage report to TeamCity"
+      )
     }
 
-    log.info(s"Statement coverage: ${coverage.statementCoverageFormatted}%")
-    log.info(s"Branch coverage: ${coverage.branchCoverageFormatted}%")
-    log.info("Coverage reports completed")
+    log.info(
+      s"sbt-scoverage: Statement coverage: ${coverage.statementCoverageFormatted}%"
+    )
+    log.info(
+      s"sbt-scoverage: Branch coverage: ${coverage.branchCoverageFormatted}%"
+    )
+    log.info("sbt-scoverage: Coverage reports completed")
   }
 
   private def reportToTeamcity(
       coverage: Coverage,
       createCoverageZip: Boolean,
       reportDir: File,
-      crossTarget: File,
-      log: Logger
-  ) {
-
+      crossTarget: File
+  )(implicit log: Logger) {
     def statsKeyValue(key: String, value: Int): String =
       s"##teamcity[buildStatisticValue key='$key' value='$value']"
 
@@ -422,10 +445,8 @@ object ScoverageSbtPlugin extends AutoPlugin {
 
   private def loadCoverage(
       crossTarget: File,
-      log: Logger,
       sourceRoot: File
-  ): Option[Coverage] = {
-
+  )(implicit log: Logger): Option[Coverage] = {
     val dataDir = crossTarget / "scoverage-data"
     val coverageFile = Serializer.coverageFile(dataDir)
 

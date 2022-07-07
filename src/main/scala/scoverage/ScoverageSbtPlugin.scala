@@ -293,7 +293,7 @@ object ScoverageSbtPlugin extends AutoPlugin {
   }
 
   private lazy val coverageAggregate0 = Def.task {
-    val target = coverageDataDir.value
+    val dataDir = coverageDataDir.value / "scoverage-data"
     implicit val log = streams.value.log
 
     log.info(s"sbt-scoverage: Aggregating coverage from subprojects ...")
@@ -306,7 +306,7 @@ object ScoverageSbtPlugin extends AutoPlugin {
     CoverageAggregator.aggregate(dataDirs, coverageSourceRoot.value) match {
       case Some(cov) =>
         writeReports(
-          target,
+          dataDir,
           sourceDirectories.all(aggregateFilter).value.flatten,
           cov,
           coverageOutputCobertura.value,
@@ -324,7 +324,7 @@ object ScoverageSbtPlugin extends AutoPlugin {
 
       case None =>
         log.warn(
-          s"sbt-scoverage: No coverage data found to aggregate in [$target]. Run >sbt coverage test< first."
+          s"sbt-scoverage: No coverage data found to aggregate in [$dataDir]. Run >sbt coverage test< first."
         )
     }
   }

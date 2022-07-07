@@ -4,4 +4,4 @@
 > test
 > coverageReport
 $ exists target/custom-test/scoverage-data
-$ exists target/custom-test/scoverage-report
+$ exists target/custom-test/scoverage-data/scoverage-report

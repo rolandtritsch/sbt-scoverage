@@ -8,9 +8,9 @@ $ exists b/target/scala-2.13/scoverage-data
 $ absent c/target/scala-2.13/scoverage-data
 > coverageReport
 # There should be scoverage-report directory
-$ exists a/target/scala-2.13/scoverage-report
-$ exists b/target/scala-2.13/scoverage-report
-$ absent c/target/scala-2.13/scoverage-report
+$ exists a/target/scala-2.13/scoverage-data/scoverage-report
+$ exists b/target/scala-2.13/scoverage-data/scoverage-report
+$ absent c/target/scala-2.13/scoverage-data/scoverage-report
 > coverageAggregate
 # There should be a root scoverage-report directory
-$ exists target/scala-2.13/scoverage-report
+$ exists target/scala-2.13/scoverage-data/scoverage-report

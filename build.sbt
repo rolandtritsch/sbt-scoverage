@@ -2,7 +2,7 @@ name := "sbt-scoverage"
 
 import sbt.ScriptedPlugin.autoImport.scriptedLaunchOpts
 
-lazy val scoverageVersion = "2.0.0"
+lazy val scoverageVersion = "2.1.0-SNAPSHOT"
 
 inThisBuild(
   List(
@@ -25,7 +25,8 @@ inThisBuild(
     licenses := Seq(
       "Apache-2.0" -> url("http://www.apache.org/license/LICENSE-2.0")
     ),
-    scalaVersion := "2.12.15"
+    scalaVersion := "2.12.15",
+    version := scoverageVersion
   )
 )
 

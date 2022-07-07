@@ -257,6 +257,8 @@ object ScoverageSbtPlugin extends AutoPlugin {
 
     val dataDir = coverageDataDir.value / "scoverage-data"
     val coverageFile = Serializer.coverageFile(dataDir)
+    val sourceDirs = (Compile / sourceDirectories).value
+    val coverageMinimum = CoverageMinimum.all.value
 
     if (!coverageFile.exists) {
       log.warn(
@@ -276,18 +278,17 @@ object ScoverageSbtPlugin extends AutoPlugin {
 
       writeReports(
         dataDir,
-        (Compile / sourceDirectories).value,
+        sourceDirs,
         coverage,
         coverageOutputCobertura.value,
         coverageOutputXML.value,
         coverageOutputHTML.value,
         coverageOutputDebug.value,
         coverageOutputTeamCity.value,
-        sourceEncoding((Compile / scalacOptions).value)
+        Some("utf8")
       )
 
-      CoverageMinimum.all.value
-        .checkCoverage(coverage, coverageFailOnMinimum.value)
+      coverageMinimum.checkCoverage(coverage, coverageFailOnMinimum.value)
     }
   }
 
@@ -313,7 +314,7 @@ object ScoverageSbtPlugin extends AutoPlugin {
           coverageOutputHTML.value,
           coverageOutputDebug.value,
           coverageOutputTeamCity.value,
-          sourceEncoding((Compile / scalacOptions).value)
+          Some("utf8")
         )
         val cfmt = cov.statementCoverageFormatted
         log.info(s"sbt-scoverage: Aggregation complete. Coverage was [$cfmt].")
@@ -471,10 +472,4 @@ object ScoverageSbtPlugin extends AutoPlugin {
       None
     }
   }
-
-  private def sourceEncoding(scalacOptions: Seq[String]): Option[String] = {
-    val i = scalacOptions.indexOf("-encoding") + 1
-    if (i > 0 && i < scalacOptions.length) Some(scalacOptions(i)) else None
-  }
-
 }

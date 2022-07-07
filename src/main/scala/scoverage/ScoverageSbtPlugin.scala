@@ -346,7 +346,9 @@ object ScoverageSbtPlugin extends AutoPlugin {
     coberturaDir.mkdirs()
     reportDir.mkdirs()
 
-    log.debug(s"sbt-scoverage: coverage(first statement): ${coverage.statements.head}")
+    log.debug(
+      s"sbt-scoverage: coverage(first statement): ${coverage.statements.head}"
+    )
 
     if (coverageOutputCobertura) {
       new CoberturaXmlWriter(
